@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html debug="true">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="robots" content="noindex">
+
+    <title>Alive! - The Evolution Game</title>
+
+    <link rel='stylesheet prefetch' href='css/bootstrap.min.css'>
+    <link rel='stylesheet prefetch' href='css/bootstrap-glyphicons.css'>
+    <link rel='stylesheet prefetch' href='css/app.css'>
+
+
+   <!-- <script type="text/javascript" src="http://fbug.googlecode.com/svn/lite/branches/firebug1.4/content/firebug-lite-dev.js#startOpened=true">{
+        startOpened:true
+    }</script> -->
+
+</head>
+
+<body>
+
+<div class='container topmargin'>
+    <div class='infobar'>
+        <span id='rulekind'>Rule: </span><span id='rulenum'>0</span>
+        <span class='floatright' id='generation'>0</span>
+    </div>
+</div>
+
+<div class='container'>
+    <canvas id="hexCanvas" width="790" height="600" style="width:790px;height:600px"></canvas>
+</div>
+
+<div class='container'>
+    <div class='controlbar'>
+        <button type="button" id='playpause' class="btn btn-lg toolbarbtn">
+            <span class="glyphicon glyphicon-play"></span>
+        </button>
+        <button type="button" id='restart' class="btn btn-lg toolbarbtn">
+            <span class="glyphicon glyphicon-step-backward"></span>
+        </button>
+        <button type="button" id='regenerate' class="btn btn-lg toolbarbtn">
+            <span class="glyphicon glyphicon-step-forward"></span>
+        </button>
+    </div>
+</div>
+<div class='container'>
+    <textarea style="margin-top:10px;width:790px;height:80px" id="info"></textarea>
+</div>
+
+<div class='container'>
+    <textarea style="margin-top:10px;width:790px;height:80px" id="rule"></textarea>
+</div>
+
+<script src='js/jquery-2.1.1.min.js'></script>
+<script src='js/bootstrap.min.js'></script>
+<script src='js/dat.gui.min.js'></script>
+<script src='js/stats.js'></script>
+
+<script src='utils.common.js'></script>
+<script src='hex-grid.js'></script>
+<script src='alive.js'></script>
+<script src='app.js'></script>
+
+<script>
+
+//[21,29,37,34,63,44,7,46,61,26,1,30,23,3,4,57,52,18,40,59,53,50,36,60,58,32,62,55,15,25,51,38]
+//[49,50,38,39,4,61,22,44,42,57,30,58,33,17,10,23,35,25,13,6,56,27,32,60,3,43,18,12,24,51,62,52]
+//[47,5,4,21,35,56,3,33,34,43,37,28,31,36,32,22,58,27,15,11,53,29,1,51,26,42,13,9,14,48,46,38]
+
+</script>
+
+</body>
+
+</html>

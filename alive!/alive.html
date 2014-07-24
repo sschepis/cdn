@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title></title>
+</head>
+<style>
+    html, body {
+        width : 100%;
+        height : 100%;
+    }
+    .scripts {
+        width : 100%;
+        height : 100%;
+    }
+</style>
+<script>
+var sin = Math.sin,
+        cos = Math.cos,
+        tan = Math.tan,
+        exp = Math.exp,
+        pow = Math.pow,
+        abs = Math.abs,
+        PI  = Math.PI,
+        rnd = Math.random,
+        sqr = function(a) { return a*a; },
+        sqrt = Math.sqrt,
+        PHI = 0.618;
+
+var pulses = [
+    'sin(t)',
+    'cos(t)',
+    'cos(t)*sin(t)',
+    'sin(t)*sin(t*1.5)',
+    'sin(tan(cos(t)*1.2))',
+    'sin(tan(t)*0.05)',
+    'cos(sin(t*3))*sin(t*0.2)',
+    'sin(pow(8,sin(t)))',
+    'sin(exp(cos(t*0.8))*2)',
+    'sin(t-PI*tan(t)*0.01)',
+    'pow(sin(t*PI),12)',
+    'cos(sin(t)*tan(t*PI)*PI/8)',
+    'sin(tan(t)*pow(sin(t),10))',
+    'cos(sin(t*3)+t*3)',
+    'pow(abs(sin(t*2))*PHI,sin(t*2))*PHI'
+];
+var pulsefuncs = [];
+for ( var i = 0, n = pulses.length; i < n; i++ ) {
+    pulsefuncs[i] = new Function( 't', 'return ' + pulses[i] );
+}
+
+var GeneLab = function() {
+    this.G = 1 << 0;
+    this.A = 1 << 1;
+    this.T = 1 << 2;
+    this.C = 1 << 3;
+    return this;
+}
+
+function rand(min, max) {
+    return ~~( rnd() * (max - min) ) + min;
+}
+
+GeneLab.pair = function() {
+    return ~~( (rnd() * 15) + 1);
+};
+
+GeneLab.chromosome = function() {
+    var aa = GeneLab.pair() << 4;
+    aa += GeneLab.pair();
+    return aa;
+};
+
+GeneLab.genome = function(n) {
+    var out = [];
+    for(var i=0; i<n; i++)
+        out.push(GeneLab.chromosome());
+    return out;
+};
+
+function Genome() {
+    this.chromosomes = [];
+}
+
+function Behavior() {
+    /*
+     flock
+     wander
+     hunt
+     chase
+     escape
+     attack
+     defend
+
+     look
+     smell
+     listen
+
+     emitsmell
+     emitsound
+     emitlight
+     */
+}
+
+function Sense() {
+    /*
+     sight
+     sound
+     smell
+     */
+}
+
+function Creature(options) {
+    this.genome = [
+        GeneLab.chromosome()
+    ];
+    this.position = options.position || new Two.Vector(0 , 0);
+    this.velocity = new Two.Vector(0, 0);
+    this._mov_t   = 0;
+    this.mass     = 5;
+    this.size     = 5;
+    this.energy   = 100;
+}
+
+/**
+ *
+ */
+Creature.prototype.readMovementChromosome = function(i) {
+    var chromosome = this.genome[i];
+    return {
+        func : callbacks[chromosome & 15],
+        min  : ( chromosome & 48 ) > 4,
+        max  : ( chromosome & 192 ) > 6
+    };
+}
+
+Creature.prototype.mov_t = function() {
+    this._mov_t = this._mov_t ? this._mov_t + 1 : 0;
+}
+
+Creature.prototype.movetowards = function(direction) {
+    var f, mobility = this.readMovementChromosome();
+    if (!(f = mobility.func.call( this, this._mov_t ))) return;
+    f = mobility.min + abs(f) * (mobility.max - mobility.min);
+    var dlen = sqrt(sqr(direction.x) * sqr(direction.y));
+    this.velocity.x += ( direction.x * f ) / dlen;
+    this.velocity.y += ( direction.y * f ) / dlen;
+    return f;
+}
+
+Creature.prototype.draw = function() {
+    if(!this.shape) {
+        this.shape = two.makeRectangle(this.position.x, this.position.y, 50, 50);
+        this.shape.noStroke().fill = getRandomColor();
+        this.shape.rotation = Math.random() * Math.PI * 2;
+    } else {
+        this.shape.setPosition(this.position.x, this.position.y);
+    }
+}
+
+Creature.prototype.updatePosition = function() {
+    var bottom = new Two.Vector(this.position.x, two.height);
+    var r12 = [ bottom.x - this.position.x,
+                bottom.y - this.position.y ];
+    var distanceSquared = this.position.distanceToSquared(bottom);
+    var force = this.mass / distanceSquared;
+    this.velocity.x += r12[0] * force;
+    this.velocity.y += r12[1] * force;
+    this.position.x += this.velocity.x;
+    this.position.y += this.velocity.y;
+}
+
+function Landscape(options) {
+    this.creatures = [];
+    this.bounds = options.bounds;
+    this.food = [];
+    return this;
+}
+
+Landscape.prototype.populateCreatures = function(options) {
+    for(var i = 0; i < options.num; i++) {
+        var c = new Creature({
+            position : new Two.Vector(rand(0, this.bounds.x), rand(0, this.bounds.y))
+        });
+        this.creatures.push(c);
+    }
+    return this;
+}
+
+Landscape.prototype.populateLandscape = function(options) {
+
+}
+
+Landscape.prototype.animate = function() {
+    for(var i=0;i<this.creatures.length;i++) {
+        this.creatures[i].draw();
+        this.creatures[i].updatePosition();
+    }
+}
+
+var two;
+$(function() {
+    var type = /(canvas|webgl)/.test(url.type) ? url.type : 'svg';
+    two = new Two({
+        type: Two.Types[type],
+        fullscreen: true,
+        autostart: true
+    }).appendTo(document.body);
+
+    var landscape = new Landscape( {
+        two : two,
+        bounds : new Two.Vector(two.width, two.height)
+    } );
+    landscape.populateCreatures({
+        num : 20
+    });
+
+    var _animate = function() {
+        landscape.animate();
+        requestAnimationFrame( _animate );
+    };
+    requestAnimationFrame( _animate );
+
+    var zui = new ZUI(two);
+    zui.addLimits(0.03, 12);
+
+    var $stage = $(two.renderer.domElement);
+    $stage.bind('mousewheel', function(event) {
+        var e = event.originalEvent;
+        e.stopPropagation();
+        e.preventDefault();
+        var dy = e.wheelDeltaY / 1000;
+        zui.zoomBy(dy, e.clientX, e.clientY);
+    });
+});
+function getRandomColor() {
+    return 'rgb('
+            + Math.floor(Math.random() * 255) + ','
+            + Math.floor(Math.random() * 255) + ','
+            + Math.floor(Math.random() * 255) + ')';
+}
+
+</script>
+<body>
+<div class="scripts"></div>
+</body>
+</html>

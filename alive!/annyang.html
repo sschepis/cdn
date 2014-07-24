@@ -1,0 +1,608 @@
+
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="robots" content="noindex">
+
+    <title>Wolfie</title>
+
+    <link href='//fonts.googleapis.com/css?family=Droid+Sans:400,700' rel='stylesheet' type='text/css'>
+
+    <style>html, body {
+        width: 100%;
+        height: 100%;
+        font-family: 'Droid Sans', sans-serif;
+    }
+
+    .contentframe {
+        width: 100%;
+        height: 100%;
+        border: 0;
+    }
+
+    .hidden {
+        display: none;
+    }
+
+    .speechbubble {
+        position:absolute;
+        z-index:1000;
+        margin-top:100px;
+        width:600px;
+        height:auto;
+        background-color: rgba(255,255,255,0.5);
+        left:0;
+        right:0;
+        margin-left:auto;
+        margin-right:auto;
+        text-align: center;
+        font-size: 24pt;
+        border: 1px solid #cccccc;
+        border-radius: 15px;
+    }
+
+    .pod {
+        margin-top:200px;
+        width:300px;
+        min-width:300px;
+        height:300px;
+        background-color: rgba(255,255,255,0.5);
+        left:0;
+        right:0;
+        margin-left:auto;
+        margin-right:auto;
+        text-align: center;
+        font-size: 16pt;
+        border: 1px solid #cccccc;
+        border-radius: 25px;
+    }
+
+    .pod span.title {
+        font-weight: bold;
+        text-align: center;
+        width: 100%;
+        height: 60px;
+        line-height: 80px;
+        margin:10px;
+    }
+    .pod div.content, .pod div.image {
+        width:100%;
+        height:auto;
+        margin:20px;
+    }
+    .pod img {
+        margin: 0 auto;
+    }
+    #dictator textarea {
+        width:100%;
+        height:100%;
+        border: 0;
+    }
+    #textout pre {
+        width:100%;
+        height:100%;
+    }
+    </style>
+
+    <script src="js/modernizr.min.js"></script>
+    <script src='js/jquery-2.1.1.min.js'></script>
+    <script src='js/annyang.js'></script>
+    <script src='js/async.js'></script>
+
+</head>
+
+<body>
+
+<div id="speechBubble" class="speechbubble"></div>
+<iframe width="100%" height="100%" id='content' class='contentframe'></iframe>
+<div id="flickrLoader"><p></p></div>
+<div id="flickrGallery"></div>
+<div id="textout" class="contentframe"><pre></pre></div>
+<div id="htmlout" class="contentframe"></div>
+<div id="dictator" class="contentframe"><textarea></textarea></div>
+
+<script>
+    var yesAction,
+        mode = 'idle',
+        talking = false,
+        lastCommand = null,
+        lastParam = null,
+        pageNumber;
+
+    async = async ? async : {};
+    function bubble(s) {
+        if(talking === true) return;
+        console.log(s);
+    }
+    function clear() {
+        $('body').children().hide();
+    }
+    function Pod(data) {
+        var self = this;
+        this.elements = [];
+        this.addElement = function(k,v) {
+            self.elements.push({
+                key: k,
+                value: v
+            });
+        };
+        var subpod = data.subpod;
+        if(data.$ && subpod && subpod[0]) {
+            this.id = data.$.id.replace(':','');
+            subpod = subpod[0];
+            var text = subpod.plaintext && subpod.plaintext[0] ? subpod.plaintext[0].split('\n') : '';
+            for(var t in text) {
+                t = text[t];
+                t = t.replace(' | ', ': ');
+            }
+            self.elements.push({
+                key: data.$.title,
+                value: text
+            });
+            if(subpod.img.length>0) {
+                this.image = subpod.img[0].$;
+            }
+        }
+    }
+
+    Pod.import = function(podlist) {
+        var pods = [];
+        if(!podlist.pod) return pods;
+        for(var i = 0;i < podlist.pod.length; i++) {
+            var pod = podlist.pod[i];
+            pods.push(new Pod(pod));
+        }
+        return pods;
+    };
+
+    Pod.talk = function(s, callback) {
+        var self = this;
+        if(!s || s.trim().length === 0) {
+            if(callback) return callback();
+        }
+        talking = true;
+        this.msg = new SpeechSynthesisUtterance();
+        this.msg.text = s;
+        this.msg.lang = 'en-US';
+        this.msg.rate = 1.1;
+        this.msg.onend = function(event) {
+            talking = false;
+            delete self.msg;
+            if(callback) callback(event);
+        };
+        window.speechSynthesis.speak(this.msg);
+    };
+
+    Pod.prototype.show = function(parent, callback) {
+        var self = this;
+        parent = !parent && callback ? callback : parent;
+        parent = parent ? parent : 'body';
+        function _build(next) {
+            var div = '<div id=\'' + self.id + '\' class=\'pod hidden\'><div class=\'title\'>'
+                    + self.elements[0].key
+                    + '</div>';
+            //+ '</span><div class=\'content\'></div>';
+            div += '<img src="' + self.image.src + '" width="' + self.image.width + '" height="' + self.image.height + '">'
+            $(parent).append(div);
+            var obj = {
+                created : true,
+                title: self.elements[0].key,
+                $new : $('#' + self.id)
+            };
+            next(null, obj);
+        }
+        function _show(obj, next) {
+            obj.$new_content = obj.$new.find('div.content');
+            obj.$new_image = obj.$new.find('div.image');
+            if(self.image) {
+                obj.$new_image.css('width', self.image.width + 'px');
+                obj.$new_image.css('height', self.image.height + 'px');
+                obj.$new.css('width', self.image.width + 'px');
+            }
+            obj.$new.show();
+            Pod.talk(obj.title, function(){
+                next(null, obj);
+            });
+        }
+        function _animateElements(obj, next) {
+            if(self.elements
+            && self.elements.length !== 0
+            && self.elements[0].value
+            && self.elements[0].value.length !== 0) {
+                var els = self.elements[0].value;
+                function showElement(i) {
+                    if(i===els.length)
+                        return next(null, obj);
+                    //obj.$new_content.html(els[i]);
+                    Pod.talk(els[i], function(){
+                        setTimeout(function(){
+                            obj.$new_content.html('');
+                            showElement(++i);
+                        }, 100);
+                    });
+                }
+                showElement(0);
+            } else next(null, obj);
+        }
+        function _hide(obj, next) {
+            obj.$new.fadeOut(200, function(){
+                obj.$new.remove();
+                next(null, obj);
+            });
+        }
+        async.waterfall([ _build, _show, _animateElements, _hide ],
+            function(err, out) {
+                callback(null, true);
+            });
+    };
+    //        var voices = window.speechSynthesis.getVoices();
+    //        msg.voice = voices[10]; // Note: some voices don't support altering params
+    //        msg.voiceURI = 'native';
+    //        msg.volume = 1; // 0 to 1
+    //        msg.pitch = 2; //0 to 2
+    //        msg.text = s;
+    //        msg.lang = 'en-US';
+
+
+var say = function(s, callback) {
+    var $bubble = $('#speechBubble');
+    $bubble.html(s).show();
+
+    Pod.talk(s, function(e){
+        $bubble.fadeOut(200, function(){
+            if(callback) callback(e);
+        });
+    });
+
+    console.log(s);
+};
+
+// define the functions our commands will run.
+var hello = function() {
+    lastCommand = 'hello';
+    lastParam = null;
+
+    if(mode !== 'idle' && mode !== '') return;
+    mode = 'hello';
+    say('hello. How may I serve you?', function() {
+        mode = 'idle';
+    });
+};
+
+var help = function() {
+    lastCommand = 'help';
+    lastParam = null;
+    if(mode !== 'idle' && mode !== '') return;
+    say('Sorry but my help features are not implemented yet. Try again soon.', function() {
+        mode = 'idle';
+    });
+};
+
+var chat = function(message) {
+    lastCommand = 'chat';
+    lastParam = message;
+
+    if(!conversation || this.responding) return;
+
+    var url = '/chat?chatbotid=63906&message=' + encodeURIComponent(message);
+    $.get(url, function(results) {
+        if(results.success) {
+            this.responding = true;
+            say(results.message.message, function () {
+                this.responding = false;
+            });
+        }
+    });
+};
+
+var dictate = function(text) {
+    lastCommand = 'dictate';
+    lastParam = text;
+    if(!dictation) return;
+    $('#dictator').show();
+    var $d = $('#dictator textarea');
+    if(text === 'clear') return $d.val('');
+    else if (text === 'dictation off') return dictationOff();
+
+    $d.val($d.val() + ' ' + text);
+};
+
+var showFlickr = function(tag) {
+    if(mode !== 'idle') return;
+    mode = 'flickr';
+    var self = this;
+
+    $('body').children().hide();
+    $('#flickrGallery').show();
+    $('#flickrLoader').show();
+    pageNumber = lastParam === tag ? pageNumber + 1 : 1;
+    say('Searching for '+tag, function() {
+        $('#flickrLoader p').fadeIn('fast');
+        var url = '/flickr?tags='+encodeURIComponent(tag) + '&page=' + pageNumber;
+        $.get(url, function(results) {
+            $('body').children().hide();
+            $('#flickrGallery').show();
+            $('#flickrLoader p').fadeOut('slow');
+            var photos = results.photos.photo;
+            if(lastParam !== tag) $("#flickrGallery").html('');
+            $.each(photos, function(index, photo) {
+                $("#flickrGallery").append(
+                        $(document.createElement("img"))
+                                .attr({ src: '//farm'
+                                        + photo.farm + '.staticflickr.com/'
+                                        + photo.server + '/'+photo.id+'_'
+                                        + photo.secret + '_m.jpg' })
+                                .addClass("flickrGallery"));
+            });
+            lastCommand = 'showFlickr';
+            lastParam = tag;
+            mode = 'idle';
+        });
+    });
+};
+
+var google = function(term) {
+    lastCommand = 'google';
+    lastParam = term;
+    if(mode !== 'idle' && mode !== '') return;
+    mode = 'google';
+    say('searching for ' + term, function() {
+        var q = encodeURIComponent(term);
+        $('#content').attr('src', '/google?q=' + q);
+        $('body').children().hide();
+        $('#content').show();
+        setTimeout(function(){
+            mode = 'idle';
+        }, 1000);
+    });
+};
+
+var wikipedia = function(term) {
+    var self = this;
+    if(mode !== 'idle' || self.responding) return;
+    mode = 'wikipedia';
+    var self = this;
+    function toTitleCase(str) {
+        return str.replace(/\w\S*/g, function(txt){return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();});
+    }
+    function sayResults(results) {
+        $('#htmlout').html(results.html).show();
+        self.sentences = results.text.split('.');
+        function saySentences(callback) {
+            if (self.i === self.sentences.length) {
+                return callback();
+            }
+            var se = self.sentences[self.i] + '.';
+            self.i = self.i + 1;
+            console.log(se);
+            Pod.talk(se, function () {
+                setTimeout(function(){
+                    saySentences(callback);
+                }, 100);
+            });
+        }
+        saySentences(function(){
+            lastCommand = 'wikipedia';
+            lastParam = term;
+            $('#htmlout').hide();
+            self.responding = false;
+            mode = 'idle';
+        });
+    }
+    self.responding = true;
+    say('searching for ' + term, function() {
+        var url = '/wikipedia?term=' + encodeURIComponent(toTitleCase(term));
+        $('body').children().hide();
+        $.get(url, function(results) {
+            Pod.talk(term, function(){
+                self.i = 0;
+                setTimeout(function(){
+                    sayResults(results);
+                }, 100);
+            });
+        });
+    });
+};
+
+//
+var present = function(query, result) {
+    var i = 0, pods = Pod.import(result);
+    if(pods.length === 0) {
+        say("I'm sorry, but my research yielded nothing on "
+                + query + ". Would you like me to search the internet for this term?");
+        yesAction = {
+            action : 'google',
+            term : query
+        };
+        mode = 'idle';
+        return;
+    }
+
+    var showPod = function(i) {
+        if(i===pods.length) {
+            mode = 'idle';
+            return;
+        }
+        pods[i].show('body', function(){
+            setTimeout(function(){
+                showPod(++i);
+            }, 0);
+        });
+    };
+    if(pods.length !== 0 ) showPod(0);
+};
+
+var wolfram = function(term) {
+    lastCommand = 'wolfram';
+    lastParam = term;
+    if(mode !== 'idle' && mode !== '') return;
+    mode = 'wolfram';
+    say('researching ' + term, function() {
+        clear();
+        $.get('/v2/query?input=' + encodeURIComponent(term),
+                function(result) {
+                    present(term, result.queryresult);
+                });
+    });
+};
+
+var dictation = false;
+var dictationOn = function() {
+    if(mode !== 'idle' && mode !== '') return;
+    if(dictation)
+        say('already in dictation mode');
+    else {
+        mode = 'idle';
+        dictation = true;
+        $('body').children().hide();
+        annyang.removeCommands(window.commands);
+        annyang.addCommands(window.dictateCommands);
+        say('enabling dictation mode');
+    }
+};
+
+var dictationOff = function() {
+    var speech;
+    if(mode !== 'idle' && mode !== '') return;
+    if(!dictation)
+        say('not in dictation mode');
+    else {
+        dictation = false;
+        $('#dictator').hide();
+        annyang.removeCommands(window.dictateCommands);
+        annyang.addCommands(window.commands);
+        say('disabling dictation mode');
+    }
+};
+
+var conversation = false;
+var conversationOn = function() {
+    if(mode !== 'idle' && mode !== '') return;
+    if(conversation)
+        say('already chatting!');
+    else {
+        mode = 'conversation';
+        conversation = true;
+        annyang.removeCommands(window.commands);
+        annyang.addCommands(window.convoCommands);
+        say('let\'s talk');
+    }
+};
+
+var conversationOff = function() {
+    var speech;
+    if(!conversation)
+        say('not in conversation mode');
+    else {
+        conversation = false;
+        annyang.removeCommands(window.convoCommands);
+        annyang.addCommands(window.commands);
+        say('bye');
+    }
+};
+
+var yes = function() {
+    if(mode !== 'idle') return;
+    if(yesAction) {
+        if(yesAction.action === 'google') {
+            google(yesAction.term);
+            delete yesAction;
+        }
+    }
+};
+
+var no = function() {
+    if(yesAction) {
+        delete yesAction;
+        say('OK');
+    }
+};
+
+var pause = function() {
+    if(Pod.msg && !Pod.msg.paused) {
+        Pod.msg.paused = true;
+        Pod.msg.pause();
+    }
+};
+
+var play = function() {
+    if(Pod.msg && Pod.msg.paused) {
+        delete Pod.msg.paused;
+        Pod.msg.play();
+    }
+};
+
+var again = function() {
+    if(lastCommand) {
+        var func = lastCommand + ( lastParam !== null ? '("' + lastParam +  '")' : '()' );
+        eval(func);
+    }
+};
+
+window.commands = {
+    '(I) (need) (can) (you) (your) help (me)'  : help,
+    'hello (there)'  : hello,
+    'google *search' : google,
+    '(show) (find) (me) pictures (of) *tag' : showFlickr,
+    '(show) (find) (me) images (of) *tag' : showFlickr,
+    'research *term'   : wolfram,
+    'dictation (mode) on' : dictationOn,
+    'dictation (mode) off' : dictationOff,
+    'wikipedia *term'   : wikipedia,
+    'enable dictation (mode)' : dictationOn,
+    'disable dictation (mode)' : dictationOff,
+    'conversation (mode) on' : conversationOn,
+    'enable conversation (mode)' : conversationOn,
+    'yes' : yes,
+    'no' : no,
+    'pause' : pause,
+    'play' : play,
+    'again' : again
+};
+
+window.convoCommands = {
+    '*message' : chat
+};
+window.dictateCommands = {
+    '*text' : dictate
+};
+
+
+if (annyang) {
+    annyang.listener(bubble);
+
+    annyang.debug();
+    annyang.addCommands(window.commands);
+    annyang.setLanguage('en');
+
+    $(document).ready(function(){
+        clear();
+        say('welcome', function(){
+            annyang.start();
+        });
+    });
+}
+    /*
+     // annyang will capture anything after a splat (*) and pass it to the function.
+     // e.g. saying "Show me Batman and Robin" is the same as calling showFlickr('Batman and Robin');
+     'show me *term': showFlickr,
+
+     // A named variable is a one word variable, that can fit anywhere in your command.
+     // e.g. saying "calculate October stats" will call calculateStats('October');
+     'calculate :month stats': calculateStats,
+
+     // By defining a part of the following command as optional, annyang will respond to both:
+     // "say hello to my little friend" as well as "say hello friend"
+     'say hello (to my little) friend': greeting
+     $('#iframe1').contents().find('html').html("<h1 style='text-align: center;'>This IS an iframe</h1>");
+     */
+    //@ sourceURL=pen.js
+</script>
+
+</body>
+
+</html>

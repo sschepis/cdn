@@ -1,0 +1,34 @@
+html, body {
+    background-color: #929292;
+}
+div.container {
+    width:790px;
+    margin:0 auto;
+}
+.topmargin {
+    padding-top : 40px;
+}
+pre {
+    background-color:#aaa;
+}
+.controlbar {
+    width:790px;
+    height:auto;
+    margin-top:-8px;
+    background-color:#464646;
+}
+.infobar {
+    width:790px;
+    height:auto;
+    background-color:#464646;
+}
+.infobar span {
+    color:white;
+}
+.floatright {
+    float:right;
+    margin-right:100px;
+}
+#generation {
+
+}
